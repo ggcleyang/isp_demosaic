@@ -3,14 +3,30 @@
 //
 
 #include "isp_demosaic.h"
+#include "libbmp.h"
+
 #ifdef __cplusplus
 #if __cplusplus
 extern "C" {
 #endif
 #endif /* End of #ifdef __cplusplus */
 
+void remove_border(uint16** In_img,uint16** Out_img,uint16 In_width,uint16 In_height,const board_info boardInfo){
 
-    void reshape(uint16* Input,uint16**Output,uint16 img_width,uint16 img_height){
+    uint16 top = boardInfo.top;
+    uint16 bottom = boardInfo.bottom;
+    uint16 left = boardInfo.left;
+    uint16 right = boardInfo.right;
+    for(uint16 v = top;v < In_height-bottom;v++){
+        for(uint16 h = left;h < In_width-right;h++){
+            Out_img[v-top][(h-left)*3+0]=In_img[v][3*h+0];
+            Out_img[v-top][(h-left)*3+1]=In_img[v][3*h+1];
+            Out_img[v-top][(h-left)*3+2]=In_img[v][3*h+2];
+        }
+    }
+    return;
+}
+void reshape(uint16* Input,uint16**Output,uint16 img_width,uint16 img_height){
 
         uint16 m = img_width;
         uint16 n = img_height;
@@ -59,7 +75,7 @@ void MakeBorder( uint16* Input, uint16* Output, const board_info boardInfo,const
     return;
 }
 
-
+#if 1
  void bilinear_demosaic(uint16** In_img,uint16** Out_img,uint16 In_width,uint16 In_height){
 
      uint8 K_size =3;
@@ -93,7 +109,6 @@ void MakeBorder( uint16* Input, uint16* Output, const board_info boardInfo,const
      }
 
      //bilinear interpolation RGB channel
-#if 1
      for(uint16 y = start_y;y<In_height-start_y;y++){
         for(uint16 x = start_x;x<In_width-start_x;x++){
             if(BPBG == bayerPattLUT[3][y & 0x1][x & 0x1]){
@@ -114,9 +129,10 @@ void MakeBorder( uint16* Input, uint16* Output, const board_info boardInfo,const
             }
         }
     }
-#endif
      return;
  }
+#endif
+
 
 
 int main(int argc,char**argv){
@@ -161,6 +177,11 @@ int main(int argc,char**argv){
         RGB_img[v2] = (uint16*) malloc(3*(raw_width+left+right)*sizeof(uint16));
     }
 
+    uint16** rb_RGB = (uint16**)malloc(raw_height*sizeof(uint16*));
+    for(uint16 v3=0;v3 <raw_height;v3++){
+        rb_RGB[v3] = (uint16*) malloc(3*raw_width*sizeof(uint16));
+    }
+
     read_BayerImg(raw_file,raw_height,raw_width,BayerImg);
     //print_raw_to_txt(BayerImg,1920,1080,save_raw);
     MakeBorder( BayerImg, ext_BayerImg, boardInfo,raw_info);
@@ -170,9 +191,47 @@ int main(int argc,char**argv){
     reshape(ext_BayerImg,reshape_img,raw_width+left+right,raw_height+top+bottom);
     //print_reshapeRAW_to_txt(reshape_img,raw_width+left+right,raw_height+top+bottom,save_reshape_raw);
 
-    //filter_kernel
+    //bilinear demosaic
     bilinear_demosaic(reshape_img,RGB_img,raw_width+left+right,raw_height+top+bottom);
-    print_RGB_to_txt(RGB_img,raw_width+left+right,raw_height+top+bottom,save_RGB);
+    //print_RGB_to_txt(RGB_img,raw_width+left+right,raw_height+top+bottom,save_RGB);
+    remove_border(RGB_img,rb_RGB,raw_width+left+right,raw_height+top+bottom,boardInfo);
+    //print_RGB_to_txt(RGB_img,raw_width,raw_height,"D:\\leetcode_project\\remove_RGB_print_info.txt");
+#if 1
+    bmp_img img_rgb;
+    bmp_img_init_df (&img_rgb, 1920, 1080);
+    /*
+     	// Draw a checkerboard pattern:
+	for (size_t y = 0, x; y < 512; y++)
+	{
+		for (x = 0; x < 512; x++)
+		{
+			if ((y % 128 < 64 && x % 128 < 64) ||
+			    (y % 128 >= 64 && x % 128 >= 64))
+			{
+				bmp_pixel_init (&img.img_pixels[y][x], 250, 250, 250);
+			}
+			else
+			{
+				bmp_pixel_init (&img.img_pixels[y][x], 0, 0, 0);
+			}
+		}
+	}
+    */
+    for(uint16 y = 0;y < 1080;y++){
+        for(uint16 x =0;x < 1920;x++){
+            rb_RGB[y][3*x] = (uint8)((float)rb_RGB[y][3*x]/4095 *255);
+            rb_RGB[y][3*x+1] = (uint8)((float)rb_RGB[y][3*x+1]/4095 *255);
+            rb_RGB[y][3*x+2] = (uint8)((float)rb_RGB[y][3*x+2]/4095 *255);
+            bmp_pixel_init(&img_rgb.img_pixels[y][x], rb_RGB[y][3*x], rb_RGB[y][3*x+1], rb_RGB[y][3*x+2]);
+        }
+    }
+    bmp_img_write (&img_rgb, "img_rgb.bmp");
+    bmp_img_free (&img_rgb);
+#endif
+    for(uint16 q=0;q < raw_height;q++){
+        free(rb_RGB[q]);
+    }
+    free(rb_RGB);
 
     for(uint16 j=0;j <(raw_height+top+bottom);j++){
         free(RGB_img[j]);
