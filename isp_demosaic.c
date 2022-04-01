@@ -3,7 +3,6 @@
 //
 
 #include "isp_demosaic.h"
-#include "libbmp.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -158,6 +157,8 @@ int main(int argc,char**argv){
     char *save_reshape_raw = "D:\\leetcode_project\\reshape_raw_print_info.txt";
     char *save_RGB = "D:\\leetcode_project\\RGB_print_info.txt";
 
+    char *save_BMP = "D:\\leetcode_project\\img_rgb.bmp";
+
     uint16* BayerImg = (uint16*)malloc(raw_width * raw_height * sizeof(uint16));
     if( NULL == BayerImg ){
         printf("BayerImg malloc fail!!!\n");
@@ -194,40 +195,14 @@ int main(int argc,char**argv){
     //bilinear demosaic
     bilinear_demosaic(reshape_img,RGB_img,raw_width+left+right,raw_height+top+bottom);
     //print_RGB_to_txt(RGB_img,raw_width+left+right,raw_height+top+bottom,save_RGB);
+
     remove_border(RGB_img,rb_RGB,raw_width+left+right,raw_height+top+bottom,boardInfo);
     //print_RGB_to_txt(RGB_img,raw_width,raw_height,"D:\\leetcode_project\\remove_RGB_print_info.txt");
-#if 1
-    bmp_img img_rgb;
-    bmp_img_init_df (&img_rgb, 1920, 1080);
-    /*
-     	// Draw a checkerboard pattern:
-	for (size_t y = 0, x; y < 512; y++)
-	{
-		for (x = 0; x < 512; x++)
-		{
-			if ((y % 128 < 64 && x % 128 < 64) ||
-			    (y % 128 >= 64 && x % 128 >= 64))
-			{
-				bmp_pixel_init (&img.img_pixels[y][x], 250, 250, 250);
-			}
-			else
-			{
-				bmp_pixel_init (&img.img_pixels[y][x], 0, 0, 0);
-			}
-		}
-	}
-    */
-    for(uint16 y = 0;y < 1080;y++){
-        for(uint16 x =0;x < 1920;x++){
-            rb_RGB[y][3*x] = (uint8)((float)rb_RGB[y][3*x]/4095 *255);
-            rb_RGB[y][3*x+1] = (uint8)((float)rb_RGB[y][3*x+1]/4095 *255);
-            rb_RGB[y][3*x+2] = (uint8)((float)rb_RGB[y][3*x+2]/4095 *255);
-            bmp_pixel_init(&img_rgb.img_pixels[y][x], rb_RGB[y][3*x], rb_RGB[y][3*x+1], rb_RGB[y][3*x+2]);
-        }
-    }
-    bmp_img_write (&img_rgb, "img_rgb.bmp");
-    bmp_img_free (&img_rgb);
-#endif
+    save_RGB_to_BMP(rb_RGB,1920,1080,save_BMP);
+
+
+
+
     for(uint16 q=0;q < raw_height;q++){
         free(rb_RGB[q]);
     }
