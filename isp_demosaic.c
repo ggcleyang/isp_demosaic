@@ -10,6 +10,35 @@ extern "C" {
 #endif
 #endif /* End of #ifdef __cplusplus */
 
+void bubble_sort(int16* data,uint8 len){
+    for(uint8 i =0;i<len-1;i++){
+        for(uint8 j=0;j<len-i-1;j++){
+            if(data[j]>data[j+1]){
+                int16 temp =data[j];
+                data[j]=data[j+1];
+                data[j+1]=temp;
+            }
+        }
+    }
+    return;
+}
+void median_filter(int16** In_img,uint16 In_width,uint16 In_height,const board_info boardInfo){
+    uint16 top = boardInfo.top;
+    uint16 bottom = boardInfo.bottom;
+    uint16 left = boardInfo.left;
+    uint16 right = boardInfo.right;
+
+    for(uint16 v = top;v < In_height-bottom;v++){
+        for(uint16 h = left;h < In_width-right;h++){
+            int16 value_in_kernel[9] ={ In_img[v-1][h-1],In_img[v-1][h],    In_img[v-1][h+1],//
+                                        In_img[v][h-1],  In_img[v][h],      In_img[v][h+1],//
+                                        In_img[v+1][h-1],In_img[v+1][h],    In_img[v+1][h+1]};
+            bubble_sort(value_in_kernel,9);
+            In_img[v][h] = value_in_kernel[4];
+      }
+    }
+    return;
+}
 void remove_border(uint16** In_img,uint16** Out_img,uint16 In_width,uint16 In_height,const board_info boardInfo){
 
     uint16 top = boardInfo.top;
@@ -73,7 +102,6 @@ void MakeBorder( uint16* Input, uint16* Output, const board_info boardInfo,const
 
     return;
 }
-
 #if 1
  void bilinear_demosaic(uint16** In_img,uint16** Out_img,uint16 In_width,uint16 In_height){
 
@@ -131,18 +159,79 @@ void MakeBorder( uint16* Input, uint16* Output, const board_info boardInfo,const
      return;
  }
 #endif
+void freeman_median_demosaic(uint16** In_img,uint16** bilinear_img,uint16** freeman_img,uint16 In_width,uint16 In_height,const board_info boardInfo){
+
+        int16** D_rg = (int16**)malloc(In_height*sizeof(int16*));
+        for(uint16 v1=0;v1 <In_height;v1++){
+            D_rg[v1] = (int16*) malloc(In_width*sizeof(int16));
+        }
+
+        int16** D_bg = (int16**)malloc(In_height*sizeof(int16*));
+        for(uint16 v2=0;v2 <In_height;v2++){
+            D_bg[v2] = (int16*) malloc(In_width*sizeof(int16));
+        }
+        int16** D_rb = (int16**)malloc(In_height*sizeof(int16*));
+        for(uint16 v3=0;v3 <In_height;v3++){
+            D_rb[v3] = (int16*) malloc(In_width*sizeof(int16));
+        }
+
+        for(uint16 y1 =0;y1<In_height;y1++){
+            for(uint16 x1=0;x1<In_width;x1++){
+                D_rg[y1][x1] =bilinear_img[y1][3*x1+0]-bilinear_img[y1][3*x1+1];
+                D_bg[y1][x1] =bilinear_img[y1][3*x1+2]-bilinear_img[y1][3*x1+1];
+                D_rb[y1][x1] =bilinear_img[y1][3*x1+0]-bilinear_img[y1][3*x1+2];
+//                if(BPRG == bayerPattLUT[3][y1 & 0x1][x1 & 0x1]){
+//                    D_rg[y1][x1] = In_img[y1][x1]-bilinear_img[y1][3*x1+1];
+//                }
+//                else if(BPBG == bayerPattLUT[3][y1 & 0x1][x1 & 0x1]){
+//                    D_bg[y1][x1] = In_img[y1][x1]-bilinear_img[y1][3*x1+1];
+//                }
+            }
+        }
+        median_filter(D_rg,In_width,In_height,boardInfo);
+        median_filter(D_bg,In_width,In_height,boardInfo);
+        median_filter(D_rb,In_width,In_height,boardInfo);
+        //singleChannel2BMP(D_rg,In_width,In_height,"D:\\leetcode_project\\D_rg_img_rgb.bmp");
+        //singleChannel2BMP(D_gb,In_width,In_height,"D:\\leetcode_project\\D_gb_img_rgb.bmp");
+        //singleChannel2BMP(D_rb,In_width,In_height,"D:\\leetcode_project\\D_rb_img_rgb.bmp");
+#if 1
+        for(uint16 v =0;v<In_height;v++){
+            for(uint16 h=0;h<In_width;h++){
+
+                freeman_img[v][3*h+1] = bilinear_img[v][3*h+1];
+                freeman_img[v][3*h+2] = CLIP3(D_bg[v][h]+freeman_img[v][3*h+1],0,4095);//B
+                freeman_img[v][3*h+0] = CLIP3(D_rg[v][h] + freeman_img[v][3*h+1],0,4095);//R
+
+
+          }
+        }
+#endif
+        for(uint16 m=0;m < In_height;m++){
+            free(D_rb[m]);
+        }
+        free(D_rb);
+
+        for(uint16 i=0;i < In_height;i++){
+            free(D_bg[i]);
+        }
+        free(D_bg);
+
+        for(uint16 j=0;j < In_height;j++){
+            free(D_rg[j]);
+        }
+        free(D_rg);
+        return;
+    }
+
 
 
 
 int main(int argc,char**argv){
-
 /*
     static u32 gamma_table[] = {
         #include "gamma_table.h"
     };
 */
-
-
     const raw_info raw_info = {0,0,1920,1080,12,BPRG};
     const board_info boardInfo ={1,1,1,1};
     uint16 raw_width = raw_info.u16ImgWidth;
@@ -151,13 +240,13 @@ int main(int argc,char**argv){
     uint16 bottom = boardInfo.bottom;
     uint16 left = boardInfo.left;
     uint16 right =boardInfo.right;
-    char *raw_file = "D:\\all_isp\\test_img\\CC_1920x1080_12bits_RGGB_Linear.raw";
+    char *raw_file = "D:\\all_isp\\test_img\\lab_1920x1080_12bits_RGGB_Linear.raw";
     char *save_raw = "D:\\leetcode_project\\raw_print_info.txt";
     char *save_Ext_raw = "D:\\leetcode_project\\Ext_raw_print_info.txt";
     char *save_reshape_raw = "D:\\leetcode_project\\reshape_raw_print_info.txt";
     char *save_RGB = "D:\\leetcode_project\\RGB_print_info.txt";
 
-    char *save_BMP = "D:\\leetcode_project\\img_rgb.bmp";
+    char *save_BMP = "D:\\leetcode_project\\freeman_img_rgb.bmp";
 
     uint16* BayerImg = (uint16*)malloc(raw_width * raw_height * sizeof(uint16));
     if( NULL == BayerImg ){
@@ -173,14 +262,19 @@ int main(int argc,char**argv){
     }
 
 
-    uint16** RGB_img = (uint16**)malloc((raw_height+top+bottom)*sizeof(uint16*));
+    uint16** bilinear_RGB = (uint16**)malloc((raw_height+top+bottom)*sizeof(uint16*));
     for(uint16 v2=0;v2 <(raw_height+top+bottom);v2++){
-        RGB_img[v2] = (uint16*) malloc(3*(raw_width+left+right)*sizeof(uint16));
+        bilinear_RGB[v2] = (uint16*) malloc(3*(raw_width+left+right)*sizeof(uint16));
+    }
+
+    uint16** freeman_RGB = (uint16**)malloc((raw_height+top+bottom)*sizeof(uint16*));
+    for(uint16 v3=0;v3 <(raw_height+top+bottom);v3++){
+        freeman_RGB[v3] = (uint16*) malloc(3*(raw_width+left+right)*sizeof(uint16));
     }
 
     uint16** rb_RGB = (uint16**)malloc(raw_height*sizeof(uint16*));
-    for(uint16 v3=0;v3 <raw_height;v3++){
-        rb_RGB[v3] = (uint16*) malloc(3*raw_width*sizeof(uint16));
+    for(uint16 v4=0;v4 <raw_height;v4++){
+        rb_RGB[v4] = (uint16*) malloc(3*raw_width*sizeof(uint16));
     }
 
     read_BayerImg(raw_file,raw_height,raw_width,BayerImg);
@@ -193,25 +287,28 @@ int main(int argc,char**argv){
     //print_reshapeRAW_to_txt(reshape_img,raw_width+left+right,raw_height+top+bottom,save_reshape_raw);
 
     //bilinear demosaic
-    bilinear_demosaic(reshape_img,RGB_img,raw_width+left+right,raw_height+top+bottom);
+    bilinear_demosaic(reshape_img,bilinear_RGB,raw_width+left+right,raw_height+top+bottom);
     //print_RGB_to_txt(RGB_img,raw_width+left+right,raw_height+top+bottom,save_RGB);
+    freeman_median_demosaic(reshape_img,bilinear_RGB,freeman_RGB,raw_width+left+right,raw_height+top+bottom,boardInfo);
 
-    remove_border(RGB_img,rb_RGB,raw_width+left+right,raw_height+top+bottom,boardInfo);
+    remove_border(freeman_RGB,rb_RGB,raw_width+left+right,raw_height+top+bottom,boardInfo);
     //print_RGB_to_txt(RGB_img,raw_width,raw_height,"D:\\leetcode_project\\remove_RGB_print_info.txt");
-    save_RGB_to_BMP(rb_RGB,1920,1080,save_BMP);
-
-
-
+    RGB2BMP(rb_RGB,1920,1080,save_BMP);
 
     for(uint16 q=0;q < raw_height;q++){
         free(rb_RGB[q]);
     }
     free(rb_RGB);
 
-    for(uint16 j=0;j <(raw_height+top+bottom);j++){
-        free(RGB_img[j]);
+    for(uint16 p=0; p <(raw_height+top+bottom);p++){
+        free(freeman_RGB[p]);
     }
-    free(RGB_img);
+    free(freeman_RGB);
+
+    for(uint16 j=0;j <(raw_height+top+bottom);j++){
+        free(bilinear_RGB[j]);
+    }
+    free(bilinear_RGB);
 
     for(uint16 i=0;i <(raw_height+top+bottom);i++){
         free(reshape_img[i]);
@@ -223,15 +320,6 @@ int main(int argc,char**argv){
     return 0;
 
 }
-
-
-
-
-
-
-
-
-
 
 #ifdef __cplusplus
 #if __cplusplus
